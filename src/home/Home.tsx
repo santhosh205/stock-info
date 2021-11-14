@@ -138,11 +138,8 @@ export default function Home() {
   }, [newStockSelected, selectedStock, alphavantageKey, enqueueSnackbar]);
 
   const memoizedAlgoliaSearch = useMemo(() => {
-    const searchClient = algoliasearch(
-        // @ts-ignore
-        process.env.ALGOLIA_APP_ID,
-        process.env.ALGOLIA_API_KEY
-    );
+    // @ts-ignore
+    const searchClient = algoliasearch(process.env.REACT_APP_ALGOLIA_APP_ID, process.env.REACT_APP_ALGOLIA_API_KEY);
 
     return (
         <Box sx={{display: 'flex', flexDirection: 'column'}}>
