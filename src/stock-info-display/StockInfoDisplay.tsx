@@ -24,11 +24,11 @@ function StockInfoDisplay(
         </Typography>
         <Box sx={{display: 'flex', alignItems: 'flex-end'}}>
           <Typography variant="h6" component="div" color="text.primary">
-            {quote ? Number(quote[PRICE])?.toFixed(2) : ''}
+            {quote && quote[PRICE] ? Number(quote[PRICE])?.toFixed(2) : ''}
           </Typography>
           <Typography className="stock-value" variant="body1" component="div" color={color}>
             {
-              quote
+              quote && quote[CHANGE]
                   ? [
                       Number(quote[CHANGE])?.toFixed(2),
                       '(' + Number((quote[CHANGE_PERCENT] as string)?.slice(0, -1))?.toFixed(2) + '%)'
@@ -38,7 +38,7 @@ function StockInfoDisplay(
             }
           </Typography>
           <Typography className="stock-value" variant="caption" component="div" color="text.primary">
-            {quote ? (quote[SYMBOL] as string)?.split('.')[1] : ''}
+            {quote && quote[SYMBOL] ? (quote[SYMBOL] as string)?.split('.')[1] : ''}
           </Typography>
         </Box>
       </Box>

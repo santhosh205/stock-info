@@ -1,22 +1,25 @@
 import {
   Box,
+  Input,
   List,
   ListItem,
   ListItemButton,
   ListItemText,
-  MenuItem, Select,
+  MenuItem,
+  Select,
   SelectChangeEvent,
   Typography
 } from '@mui/material';
 import algoliasearch from 'algoliasearch';
 import {useSnackbar} from 'notistack';
-import React, {useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {InstantSearch} from 'react-instantsearch-dom';
 import {ConnectedAlgoliaSearchBox} from '../instant-search/InstantSearch';
 import AlgoliaLogo from '../logo-algolia-nebula-blue-full.svg';
-import './Home.css';
 import SearchResult from '../search-result/SearchResult';
 import StockInfoDisplay from '../stock-info-display/StockInfoDisplay';
+
+import './Home.css';
 
 interface Exchange {
   name: string,
@@ -71,10 +74,11 @@ export default function Home() {
 
   const alphavantageBaseUrl = 'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=';
 
-  const alphavantageKey = '';
+  const [alphavantageKey, setAlphavantageKey] = useState('');
 
   const GLOBAL_QUOTE = 'Global Quote';
   const ERROR_MESSAGE = 'Error Message';
+  const SYMBOL = '01. symbol';
 
   const [searchIndex, selectSearchIndex] = useState('dev_nse_equity');
 
@@ -83,6 +87,8 @@ export default function Home() {
   const [selectedSector, selectSector] = useState('');
 
   const [selectedStock, selectStock] = useState(null);
+
+  const [newStockSelected, setNewStockSelected] = useState(false);
 
   const [quote, setQuote] = useState(null);
 
@@ -102,30 +108,41 @@ export default function Home() {
   const handleStockSelect = (stock: any) => {
     // ISSUE - Setting 2 states is re-rendering the entire view and algolia search box resulting in 2 extra api calls.
     // SOLUTION - Fixed the re-render by using useMemo hook but caching can be added to reduce more unwanted api calls.
+    setNewStockSelected(true);
     selectStock(stock);
-    fetchStockInfo(stock);
   };
 
-  const fetchStockInfo = (stock: any) => {
-    fetch(alphavantageBaseUrl + stock['Symbol'] + '.BSE&apikey=' + alphavantageKey)
-        .then(res => res.json())
-        .then(
-            (q) => {
-              if (q[ERROR_MESSAGE]) {
-                showErrorMessage(q[ERROR_MESSAGE])
-              }
-              setQuote(q[GLOBAL_QUOTE]);
-            },
-            (e) => showErrorMessage(e.message)
-        );
-  };
+  useEffect(() => {
+    const showErrorMessage = (message: string) => {
+      enqueueSnackbar(message, {variant: 'error'});
+    };
 
-  const showErrorMessage = (message: string) => {
-    enqueueSnackbar(message, {variant: 'error'});
-  };
+    if (newStockSelected && selectedStock) {
+      fetch(alphavantageBaseUrl + selectedStock['Symbol'] + '.BSE&apikey=' + alphavantageKey)
+          .then(res => res.json())
+          .then(
+              (q) => {
+                if (q[ERROR_MESSAGE]) {
+                  showErrorMessage(q[ERROR_MESSAGE])
+                } else if (q[GLOBAL_QUOTE][SYMBOL] === undefined) {
+                  showErrorMessage(
+                      'Stock info not available. Please try again after some time.'
+                  )
+                }
+                setQuote(q[GLOBAL_QUOTE]);
+              },
+              (e) => showErrorMessage(e.message)
+          )
+          .then(() => setNewStockSelected(false));
+    }
+  }, [newStockSelected, selectedStock, alphavantageKey, enqueueSnackbar]);
 
   const memoizedAlgoliaSearch = useMemo(() => {
-    const searchClient = algoliasearch('', '');
+    const searchClient = algoliasearch(
+        // @ts-ignore
+        process.env.ALGOLIA_APP_ID,
+        process.env.ALGOLIA_API_KEY
+    );
 
     return (
         <Box sx={{display: 'flex', flexDirection: 'column'}}>
@@ -180,6 +197,22 @@ export default function Home() {
               ))
             }
           </List>
+          <Box sx={{display: 'flex', alignItems: 'flex-end', columnGap: '16px', paddingBottom: '20px'}}>
+            <Input
+                placeholder="Enter Alpha Vantage Key"
+                onChange={e => setAlphavantageKey(e.currentTarget.value)}
+                sx={{width: '240px', fontSize: '18px', padding: '0 16px'}}
+            />
+            <Typography
+                variant="caption"
+                component="a"
+                color="white"
+                href="https://www.alphavantage.co/support/#api-key"
+                target="_blank"
+            >
+              Get key
+            </Typography>
+          </Box>
         </Box>
         <Box sx={{display: 'flex', alignItems: 'flex-start', columnGap: '20px'}}>
           <Box sx={{display: 'flex', flexDirection: 'column'}}>
@@ -198,7 +231,12 @@ export default function Home() {
             >
               {
                 exchanges.map((exchange: Exchange) => (
-                    <MenuItem key={exchange.name} value={exchange.name} disabled={!exchange.active} sx={{fontSize: '18px'}}>
+                    <MenuItem
+                        key={exchange.name}
+                        value={exchange.name}
+                        disabled={!exchange.active}
+                        sx={{fontSize: '18px'}}
+                    >
                       {exchange.name}
                     </MenuItem>
                 ))
