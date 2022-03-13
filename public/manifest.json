@@ -1,6 +1,6 @@
 {
   "short_name": "Stock Info",
-  "name": "React App Demo",
+  "name": "Stock Info (with no charts)",
   "icons": [
     {
       "src": "favicon.ico",

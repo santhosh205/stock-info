@@ -12,7 +12,7 @@ function SearchResult(
       <List sx={{width: '360px', color: 'text.primary'}}>
         {
           props.hits.map((hit: any) => (
-              <ListItem key={'search-result-' + hit['ISIN']} disablePadding>
+              <ListItem key={'search-result-' + hit['objectID']} disablePadding>
                 <ListItemButton onClick={() => props.selectStock(hit)}>
                   <ListItemText primary={hit['Company']} secondary={hit['Symbol']} />
                 </ListItemButton>

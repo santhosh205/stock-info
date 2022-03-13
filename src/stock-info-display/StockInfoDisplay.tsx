@@ -1,46 +1,33 @@
+import {Variant} from '@mui/material/styles/createTypography';
 import React from 'react';
 import {Box, Typography} from '@mui/material';
-import './StockInfoDisplay.css';
+import DateTimeFormatOptions = Intl.DateTimeFormatOptions;
 
-function StockInfoDisplay(
-    props: {
-      selectedStock: any;
-      quote: any
-    }
-) {
-  const SYMBOL = '01. symbol';
+function StockInfoDisplay(props: {selectedStock: any; quote: any}) {
   const PRICE = '05. price';
-  const CHANGE = '09. change';
-  const CHANGE_PERCENT = '10. change percent';
-
+  const LATEST_TRADING_DAY = '07. latest trading day';
   const {selectedStock, quote} = props;
 
-  const color = (quote && quote[CHANGE] && Number(quote[CHANGE]) > 0) ? 'forestgreen' : 'firebrick';
+  const displayText = (size: Variant, text: string) =>
+      <Typography variant={size} component="div" color="text.primary">{text}</Typography>;
+
+  const displayPriceAndDate = () => {
+
+    const options = {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'} as DateTimeFormatOptions;
+    const formattedDate = new Intl.DateTimeFormat('en-IN', options).format(new Date(quote[LATEST_TRADING_DAY]));
+
+    return (
+        <Box sx={{display: 'flex', alignItems: 'baseline', columnGap: '10px'}}>
+          {displayText('h6', selectedStock['Currency'] + ' ' + Number(quote[PRICE]).toFixed(2))}
+          {displayText('caption', 'as on ' + formattedDate)}
+        </Box>
+    );
+  };
 
   return (
-      <Box sx={{display: 'flex', flexDirection: 'column', paddingLeft: '10px'}}>
-        <Typography variant="h6" component="div" color="text.primary">
-          {selectedStock ? selectedStock['Company'] : ''}
-        </Typography>
-        <Box sx={{display: 'flex', alignItems: 'flex-end'}}>
-          <Typography variant="h6" component="div" color="text.primary">
-            {quote && quote[PRICE] ? Number(quote[PRICE])?.toFixed(2) : ''}
-          </Typography>
-          <Typography className="stock-value" variant="body1" component="div" color={color}>
-            {
-              quote && quote[CHANGE]
-                  ? [
-                      Number(quote[CHANGE])?.toFixed(2),
-                      '(' + Number((quote[CHANGE_PERCENT] as string)?.slice(0, -1))?.toFixed(2) + '%)'
-                    ]
-                      .join(' ')
-                  : ''
-            }
-          </Typography>
-          <Typography className="stock-value" variant="caption" component="div" color="text.primary">
-            {quote && quote[SYMBOL] ? (quote[SYMBOL] as string)?.split('.')[1] : ''}
-          </Typography>
-        </Box>
+      <Box sx={{display: 'flex', flexDirection: 'column', rowGap: '10px'}}>
+        {displayText('h5', selectedStock ? selectedStock['Company'] : '')}
+        {quote ? displayPriceAndDate(): ''}
       </Box>
   );
 }
