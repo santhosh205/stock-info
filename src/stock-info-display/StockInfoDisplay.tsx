@@ -3,7 +3,12 @@ import React from 'react';
 import {Box, Typography} from '@mui/material';
 import DateTimeFormatOptions = Intl.DateTimeFormatOptions;
 
-function StockInfoDisplay(props: {selectedStock: any; quote: any}) {
+function StockInfoDisplay(
+    props: {
+      selectedStock: any,
+      quote: any
+    }
+) {
   const PRICE = '05. price';
   const LATEST_TRADING_DAY = '07. latest trading day';
   const {selectedStock, quote} = props;

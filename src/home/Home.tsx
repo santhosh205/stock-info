@@ -1,17 +1,56 @@
-import {Box, Input, Typography} from '@mui/material';
+import {Box, Button, Input, Typography} from '@mui/material';
+import {StackedLineChart} from '@mui/icons-material';
+import CircularProgress from '@mui/material/CircularProgress';
+import {green} from '@mui/material/colors';
 import algoliasearch from 'algoliasearch';
+import {initializeApp} from 'firebase/app';
+import {collection, Firestore, getDocs, getFirestore} from 'firebase/firestore/lite';
 import {useSnackbar} from 'notistack';
 import React, {useEffect, useMemo, useState} from 'react';
-import {InstantSearch} from 'react-instantsearch-dom';
+import {Configure, InstantSearch} from 'react-instantsearch-dom';
 import {ConnectedAlgoliaSearchBox} from '../instant-search/InstantSearch';
+import {Sector} from '../interfaces';
 import AlgoliaLogo from '../logo-algolia-nebula-blue-full.svg';
 import SearchResult from '../search-result/SearchResult';
+import SectorList from '../sector-list/SectorList';
 import StockInfoDisplay from '../stock-info-display/StockInfoDisplay';
 
 import './Home.css';
 
 export default function Home() {
 
+  const [sectors, loadSectors] = useState<string[]>([]);
+  const [selectedSectors, updateSelectedSectors] = useState<string[]>([]);
+
+  useEffect(() => {
+    const firebaseConfig = {
+      apiKey: process.env.REACT_APP_API_KEY,
+      authDomain: 'stock-info-71428.firebaseapp.com',
+      projectId: 'stock-info-71428',
+      storageBucket: 'stock-info-71428.appspot.com',
+      messagingSenderId: process.env.REACT_APP_MESSAGING_SENDER_ID,
+      appId: process.env.REACT_APP_APP_ID,
+      measurementId: process.env.REACT_APP_MEASUREMENT_ID
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const firestore = getFirestore(app);
+
+    getSectors(firestore).then(data => {
+      data.sort();
+      loadSectors(data);
+    });
+  }, []);
+
+  const handleSectorSelect = (sector: string) => {
+    if (!selectedSectors.includes(sector) && selectedSectors.length < 5) {
+      updateSelectedSectors([...selectedSectors, sector]);
+    } else {
+      updateSelectedSectors(selectedSectors.filter(value => value !== sector));
+    }
+  };
+
+  const alphaVantageGetKeyUrl = 'https://www.alphavantage.co/support/#api-key';
   const alphavantageQuoteUrl = 'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=';
 
   const [alphavantageKey, setAlphavantageKey] = useState('');
@@ -70,38 +109,72 @@ export default function Home() {
         );
         const searchIndex = process.env.REACT_APP_ALGOLIA_SEARCH_INDEX as string;
 
+        let filtersValue = '';
+        selectedSectors.forEach((sector, index) => {
+          if (index) filtersValue += ' OR ';
+          filtersValue += `Sector:'${sector}'`;
+        });
+
         return (
             <Box sx={{display: 'flex', flexDirection: 'column'}}>
               <InstantSearch searchClient={searchClient} indexName={searchIndex}>
+                <Configure filters={filtersValue} />
                 <ConnectedAlgoliaSearchBox />
                 <SearchResult selectStock={handleStockSelect} />
               </InstantSearch>
             </Box>
         );
       },
-      []
+      [selectedSectors]
   );
 
   return (
       <Box sx={{padding: '24px 48px'}}>
         <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingBottom: '48px'}}>
           <Box sx={{display: 'flex', alignItems: 'flex-end', columnGap: '16px'}}>
+            <StackedLineChart fontSize="large" sx={{color: green[600], paddingBottom: '4px'}} />
             <Typography variant="h4" component="div" className="text-gradient">Stock Info</Typography>
             <Typography variant="caption" component="div" color="text.primary" gutterBottom>powered by</Typography>
             <img width="96px" height="32px" src={AlgoliaLogo} alt="Algolia logo" />
             <Typography variant="caption" component="div" color="text.primary" gutterBottom>&</Typography>
             <Typography variant="h6" component="div" className="text-gradient">Alpha Vantage</Typography>
           </Box>
-          <Input
-              placeholder="Enter Alpha Vantage key"
-              onChange={e => setAlphavantageKey(e.currentTarget.value)}
-              sx={{width: '240px', height: '48px', fontSize: '16px', padding: '0 16px'}}
-          />
+          <Box sx={{width: '360px', display: 'flex', flexDirection: 'row-reverse', columnGap: '16px'}}>
+            <Button href={alphaVantageGetKeyUrl} target="_blank" sx={{textTransform: 'none'}}>
+              Get key
+            </Button>
+            <Input
+                placeholder="Enter Alpha Vantage key"
+                onChange={e => setAlphavantageKey(e.currentTarget.value)}
+                sx={{width: '240px', height: '48px', fontSize: '16px', padding: '0 16px'}}
+            />
+          </Box>
         </Box>
         <Box sx={{display: 'flex', alignItems: 'flex-start', columnGap: '24px'}}>
           {memoizedAlgoliaSearch}
-          <StockInfoDisplay selectedStock={selectedStock} quote={quote}/>
+          <StockInfoDisplay selectedStock={selectedStock} quote={quote} />
+          <Box sx={{marginLeft: 'auto', width: '360px'}}>
+            <Typography
+                variant="h6"
+                component="div"
+                color="text.primary"
+                sx={{paddingBottom: '16px', paddingLeft: '72px'}}
+            >
+              Sectors ({selectedSectors.length}/5)
+            </Typography>
+            {
+              sectors.length > 0
+                  ? <SectorList sectors={sectors} selectedSectors={selectedSectors} selectSector={handleSectorSelect}/>
+                  : <CircularProgress sx={{paddingLeft: '72px'}} />
+            }
+          </Box>
         </Box>
       </Box>
   );
+}
+
+async function getSectors(firestore: Firestore): Promise<string[]> {
+  const sectorCollection = collection(firestore, 'sector');
+  const sectorSnapshot = await getDocs(sectorCollection);
+  return sectorSnapshot.docs.map(doc => (doc.data() as Sector).name);
 }
