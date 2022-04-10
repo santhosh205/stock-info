@@ -1,15 +1,16 @@
-import {Box, Button, Input, Typography} from '@mui/material';
+import {Box, Typography} from '@mui/material';
 import {StackedLineChart} from '@mui/icons-material';
 import CircularProgress from '@mui/material/CircularProgress';
 import {green} from '@mui/material/colors';
 import algoliasearch from 'algoliasearch';
 import {initializeApp} from 'firebase/app';
 import {collection, Firestore, getDocs, getFirestore} from 'firebase/firestore/lite';
+import {getFunctions, httpsCallable} from 'firebase/functions';
 import {useSnackbar} from 'notistack';
 import React, {useEffect, useMemo, useState} from 'react';
 import {Configure, InstantSearch} from 'react-instantsearch-dom';
 import {ConnectedAlgoliaSearchBox} from '../instant-search/InstantSearch';
-import {Sector} from '../interfaces';
+import {Quote, Sector, Stock} from '../interfaces';
 import AlgoliaLogo from '../logo-algolia-nebula-blue-full.svg';
 import SearchResult from '../search-result/SearchResult';
 import SectorList from '../sector-list/SectorList';
@@ -18,29 +19,31 @@ import StockInfoDisplay from '../stock-info-display/StockInfoDisplay';
 import './Home.css';
 
 export default function Home() {
+  const firebaseConfig = {
+    apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+    authDomain: 'stock-info-71428.firebaseapp.com',
+    projectId: 'stock-info-71428',
+    storageBucket: 'stock-info-71428.appspot.com',
+    messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.REACT_APP_FIREBASE_APP_ID,
+    measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const firestore = getFirestore(app);
+  const functions = getFunctions(app);
+  const getEODQuote = httpsCallable(functions, 'getEODQuote');
 
   const [sectors, loadSectors] = useState<string[]>([]);
-  const [selectedSectors, updateSelectedSectors] = useState<string[]>([]);
 
   useEffect(() => {
-    const firebaseConfig = {
-      apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-      authDomain: 'stock-info-71428.firebaseapp.com',
-      projectId: 'stock-info-71428',
-      storageBucket: 'stock-info-71428.appspot.com',
-      messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.REACT_APP_FIREBASE_APP_ID,
-      measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const firestore = getFirestore(app);
-
     getSectors(firestore).then(data => {
       data.sort();
       loadSectors(data);
     });
-  }, []);
+  }, [firestore]);
+
+  const [selectedSectors, updateSelectedSectors] = useState<string[]>([]);
 
   const handleSectorSelect = (sector: string) => {
     if (!selectedSectors.includes(sector) && selectedSectors.length < 5) {
@@ -50,56 +53,26 @@ export default function Home() {
     }
   };
 
-  const alphaVantageGetKeyUrl = 'https://www.alphavantage.co/support/#api-key';
-  const alphavantageQuoteUrl = 'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=';
+  const [selectedStock, selectStock] = useState<Stock>();
+  const [stockQuoteRequested, setStockQuoteRequested] = useState(true);
 
-  const [alphavantageKey, setAlphavantageKey] = useState('');
+  const handleStockSelect = (stock: Stock) => {
+    selectStock(stock);
+    setStockQuoteRequested(false);
+  };
 
-  const GLOBAL_QUOTE = 'Global Quote';
-  const ERROR_MESSAGE = 'Error Message';
-  const SYMBOL = '01. symbol';
-
-  const [selectedStock, selectStock] = useState(null);
-  const [newStockSelected, setNewStockSelected] = useState(false);
-
-  const [quote, setQuote] = useState(null);
+  const [quote, setQuote] = useState<Quote>();
 
   const {enqueueSnackbar} = useSnackbar();
 
-  const handleStockSelect = (stock: any) => {
-    // ISSUE - Setting 2 states is re-rendering the entire view and algolia search box resulting in 2 extra api calls.
-    // SOLUTION - Fixed the re-render by using useMemo hook but caching can be added to reduce more unwanted api calls.
-    setNewStockSelected(true);
-    selectStock(stock);
-  };
-
   useEffect(() => {
-    const showErrorMessage = (message: string) => {
-      enqueueSnackbar(message, {variant: 'error'});
-    };
-
-    if (newStockSelected && selectedStock) {
-      const ticker = selectedStock['Symbol'] + (selectedStock['Market'] ? '.' + selectedStock['Market'] : '');
-      const credentials = '&apikey=' + alphavantageKey;
-
-      fetch(alphavantageQuoteUrl + ticker + credentials)
-          .then(res => res.json())
-          .then(
-              (q) => {
-                if (q[ERROR_MESSAGE]) {
-                  showErrorMessage(q[ERROR_MESSAGE])
-                } else if (q[GLOBAL_QUOTE][SYMBOL] === undefined) {
-                  showErrorMessage(
-                      'Stock info not available. Please try again after some time.'
-                  )
-                }
-                setQuote(q[GLOBAL_QUOTE]);
-              },
-              (e) => showErrorMessage(e.message)
-          )
-          .then(() => setNewStockSelected(false));
+    if (selectedStock !== undefined && !stockQuoteRequested) {
+      getEODQuote({symbol: selectedStock.objectID})
+          .then(res => setQuote(res.data as Quote))
+          .catch(err => enqueueSnackbar(err.code + err.message, {variant: 'error'}));
+      setStockQuoteRequested(true);
     }
-  }, [newStockSelected, selectedStock, alphavantageKey, enqueueSnackbar]);
+  }, [selectedStock, stockQuoteRequested, enqueueSnackbar, getEODQuote]);
 
   const memoizedAlgoliaSearch = useMemo(
       () => {
@@ -130,25 +103,11 @@ export default function Home() {
 
   return (
       <Box sx={{padding: '24px 48px'}}>
-        <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingBottom: '48px'}}>
-          <Box sx={{display: 'flex', alignItems: 'flex-end', columnGap: '16px'}}>
-            <StackedLineChart fontSize="large" sx={{color: green[600], paddingBottom: '4px'}} />
-            <Typography variant="h4" component="div" className="text-gradient">Stock Info</Typography>
-            <Typography variant="caption" component="div" color="text.primary" gutterBottom>powered by</Typography>
-            <img width="96px" height="32px" src={AlgoliaLogo} alt="Algolia logo" />
-            <Typography variant="caption" component="div" color="text.primary" gutterBottom>&</Typography>
-            <Typography variant="h6" component="div" className="text-gradient">Alpha Vantage</Typography>
-          </Box>
-          <Box sx={{width: '360px', display: 'flex', flexDirection: 'row-reverse', columnGap: '16px'}}>
-            <Button href={alphaVantageGetKeyUrl} target="_blank" sx={{textTransform: 'none'}}>
-              Get key
-            </Button>
-            <Input
-                placeholder="Enter Alpha Vantage key"
-                onChange={e => setAlphavantageKey(e.currentTarget.value)}
-                sx={{width: '240px', height: '48px', fontSize: '16px', padding: '0 16px'}}
-            />
-          </Box>
+        <Box sx={{display: 'flex', alignItems: 'flex-end', columnGap: '16px', paddingBottom: '48px'}}>
+          <StackedLineChart fontSize="large" sx={{color: green[600], paddingBottom: '4px'}} />
+          <Typography variant="h4" component="div" className="text-gradient">Stock Info</Typography>
+          <Typography variant="caption" component="div" color="text.primary" gutterBottom>powered by</Typography>
+          <img width="96px" height="32px" src={AlgoliaLogo} alt="Algolia logo" />
         </Box>
         <Box sx={{display: 'flex', alignItems: 'flex-start', columnGap: '24px'}}>
           {memoizedAlgoliaSearch}
@@ -165,7 +124,7 @@ export default function Home() {
             {
               sectors.length > 0
                   ? <SectorList sectors={sectors} selectedSectors={selectedSectors} selectSector={handleSectorSelect}/>
-                  : <CircularProgress sx={{paddingLeft: '72px'}} />
+                  : <Box sx={{paddingLeft: '72px', paddingTop: '8px'}}><CircularProgress /></Box>
             }
           </Box>
         </Box>
