@@ -31,10 +31,7 @@ export default function Home() {
   };
 
   const app = initializeApp(firebaseConfig);
-  // noinspection JSUnusedLocalSymbols
-  const appCheck = initializeAppCheck(app, { // nosonar
-    provider: new ReCaptchaV3Provider(process.env.REACT_APP_RECAPTCHA_SITE_KEY as string)
-  });
+  initializeAppCheck(app, {provider: new ReCaptchaV3Provider(process.env.REACT_APP_RECAPTCHA_SITE_KEY as string)});
 
   const firestore = getFirestore(app);
   const functions = getFunctions(app);
