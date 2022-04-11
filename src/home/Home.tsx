@@ -4,6 +4,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import {green} from '@mui/material/colors';
 import algoliasearch from 'algoliasearch';
 import {initializeApp} from 'firebase/app';
+import {initializeAppCheck, ReCaptchaV3Provider} from 'firebase/app-check';
 import {collection, Firestore, getDocs, getFirestore} from 'firebase/firestore/lite';
 import {getFunctions, httpsCallable} from 'firebase/functions';
 import {useSnackbar} from 'notistack';
@@ -30,6 +31,14 @@ export default function Home() {
   };
 
   const app = initializeApp(firebaseConfig);
+  const appCheck = initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(process.env.REACT_APP_RECAPTCHA_SITE_KEY as string)
+  });
+
+  if (appCheck !== null) {
+    console.log('App check enabled with ReCaptcha V3');
+  }
+
   const firestore = getFirestore(app);
   const functions = getFunctions(app);
   const getEODQuote = httpsCallable(functions, 'getEODQuote');
@@ -69,7 +78,7 @@ export default function Home() {
     if (selectedStock !== undefined && !stockQuoteRequested) {
       getEODQuote({symbol: selectedStock.objectID})
           .then(res => setQuote(res.data as Quote))
-          .catch(err => enqueueSnackbar(err.code + err.message, {variant: 'error'}));
+          .catch(err => enqueueSnackbar(err.code + ' - ' + err.message, {variant: 'error'}));
       setStockQuoteRequested(true);
     }
   }, [selectedStock, stockQuoteRequested, enqueueSnackbar, getEODQuote]);
