@@ -31,13 +31,10 @@ export default function Home() {
   };
 
   const app = initializeApp(firebaseConfig);
-  const appCheck = initializeAppCheck(app, {
+  // noinspection JSUnusedLocalSymbols
+  const appCheck = initializeAppCheck(app, { // nosonar
     provider: new ReCaptchaV3Provider(process.env.REACT_APP_RECAPTCHA_SITE_KEY as string)
   });
-
-  if (appCheck !== null) {
-    console.log('App check enabled with ReCaptcha V3');
-  }
 
   const firestore = getFirestore(app);
   const functions = getFunctions(app);
